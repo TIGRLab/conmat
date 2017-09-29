@@ -1,26 +1,12 @@
 #!/usr/bin/env python
 
-import os
-import glob
+import os, sys
+from glob import glob
 import shutil
 import sys
+import argparse
 
 #--------------------------------------------------------------------------------
-
-projectName = sys.argv[1]
-subjectID = sys.argv[2]
-
-# input directories
-dtiPipeDir = '/archive/data-2.0/' + projectName + '/pipelines/dtifit/' + subjectID + '/'
-hcpPipeDir = '/archive/data-2.0/' + projectName + '/pipelines/hcp/' + subjectID + '/T1w/'
-mniAtlasDir = '/projects/lliu/ImportantFiles/'
-eyeFile = tempSubjName + '.bedpostX/xfms/eye.mat'
-
-# output directories
-bedpostXPipeDir = '/scratch/lliu/' + projectName + '/pipelines/bedpostX/' + subjectID + '/'
-conmatPipeDir = '/scratch/lliu/' + projectName + '/pipelines/conmat/' + subjectID + '/'
-tempSubjDir = '/scratch/lliu/tmp/' + subjectID + '/'
-tempSubjName = '/scratch/lliu/tmp/' + subjectID
 
 
 def main():
@@ -66,7 +52,7 @@ def main():
 
 def getFiles():
 	os.chdir(dtiPipeDir)
-	if glob.glob('*_eddy_correct.nii.gz') != []:
+	if glob('*_eddy_correct.nii.gz') != []:
 		shutil.copytree(dtiPipeDir, tempSubjDir)
 		shutil.copy(hcpPipeDir + 'wmparc.nii.gz', tempSubjDir)
 		shutil.copy(hcpPipeDir + 'T1w_brain.nii.gz', tempSubjDir)
@@ -76,10 +62,10 @@ def getFiles():
 		os.chdir(tempSubjDir)
 
 		# renaming necessary files to proper input names
-		shutil.copyfile(tempSubjDir + glob.glob('*.bval')[0], tempSubjDir + 'bvals')
-		shutil.copyfile(tempSubjDir + glob.glob('*.bvec')[0], tempSubjDir + 'bvecs')
-		shutil.copyfile(tempSubjDir + glob.glob('*_eddy_correct_b0_bet_mask.nii.gz')[0], tempSubjDir + 'nodif_brain_mask.nii.gz')
-		shutil.copyfile(tempSubjDir + glob.glob('*_eddy_correct.nii.gz')[0], tempSubjDir + 'data.nii.gz')
+		shutil.copyfile(tempSubjDir + glob('*.bval')[0], tempSubjDir + 'bvals')
+		shutil.copyfile(tempSubjDir + glob('*.bvec')[0], tempSubjDir + 'bvecs')
+		shutil.copyfile(tempSubjDir + glob('*_eddy_correct_b0_bet_mask.nii.gz')[0], tempSubjDir + 'nodif_brain_mask.nii.gz')
+		shutil.copyfile(tempSubjDir + glob('*_eddy_correct.nii.gz')[0], tempSubjDir + 'data.nii.gz')
 	else:
 		return
 
@@ -103,9 +89,9 @@ def register():
 	# registers all necessary brain volumes, scalar files, and masks to the same voxel space
 	os.chdir(tempSubjDir)
 
-	b0Mask = glob.glob('*_b0_bet_mask.nii.gz')[0]
-	b0Brain = glob.glob('*_b0_bet.nii.gz')[0]
-	multiVol = glob.glob('*_eddy_correct.nii.gz')[0]
+	b0Mask = glob('*_b0_bet_mask.nii.gz')[0]
+	b0Brain = glob('*_b0_bet.nii.gz')[0]
+	multiVol = glob('*_eddy_correct.nii.gz')[0]
 	T1wBrain = 'T1w_brain.nii.gz'
 	wmParc = 'wmparc.nii.gz'
 	mniBrain = 'MNI152_T1_2mm_brain.nii.gz'
@@ -195,18 +181,18 @@ def runConmat():
 		conExt = '*_bedpostX_det_sc.csv'
 		lenExt = '*_bedpostX_det_ts.csv'
 
-		shutil.copyfile(tempSubjDir + glob.glob('bedDetTracts.Bfloat')[0], conmatPipeDir + subjectID + '_detTracts.Bfloat')
-		shutil.copyfile(tempSubjDir + glob.glob('*.scheme')[0], conmatPipeDir + subjectID + '.scheme')
-		shutil.copyfile(tempSubjDir + glob.glob('atlas.nii.gz')[0], conmatPipeDir + subjectID + '_registered_shen.nii.gz')
-		shutil.copyfile(tempSubjDir + glob.glob(conExt)[0], conmatPipeDir + subjectID + '_bedpostX_det_connectivity.csv')
-		shutil.copyfile(tempSubjDir + glob.glob(lenExt)[0], conmatPipeDir + subjectID + '_bedpostX_det_length.csv')
+		shutil.copyfile(tempSubjDir + glob('bedDetTracts.Bfloat')[0], conmatPipeDir + subjectID + '_detTracts.Bfloat')
+		shutil.copyfile(tempSubjDir + glob('*.scheme')[0], conmatPipeDir + subjectID + '.scheme')
+		shutil.copyfile(tempSubjDir + glob('atlas.nii.gz')[0], conmatPipeDir + subjectID + '_registered_shen.nii.gz')
+		shutil.copyfile(tempSubjDir + glob(conExt)[0], conmatPipeDir + subjectID + '_bedpostX_det_connectivity.csv')
+		shutil.copyfile(tempSubjDir + glob(lenExt)[0], conmatPipeDir + subjectID + '_bedpostX_det_length.csv')
 
 def getFaMat(stat):
 	os.chdir(tempSubjDir)
 	faCSV = conmatPipeDir + subjectID + '_bedpostX_det_fa_' + stat + '.csv'
 	if not os.path.exists(faCSV):
 		try:
-			faFile = tempSubjDir + glob.glob('*_FA.nii.gz')[0]
+			faFile = tempSubjDir + glob('*_FA.nii.gz')[0]
 
 			os.system('echo "calculating connectivity matrix"')
 			os.system('conmat \
@@ -228,12 +214,12 @@ def getFaMat(stat):
 				-outputroot ' + subjectID + '_fa_' + stat + '_')
 
 	faExt = '*_fa_' + stat + '_ts.csv'
-	shutil.copyfile(tempSubjDir + glob.glob(faExt)[0], faCSV)
+	shutil.copyfile(tempSubjDir + glob(faExt)[0], faCSV)
 
 def getMdMat(stat):
 	os.chdir(tempSubjDir)
 	mdCSV = conmatPipeDir + subjectID + '_bedpostX_det_md_' + stat + '.csv'
-	mdFile = tempSubjDir + glob.glob('*_MD.nii.gz')[0]
+	mdFile = tempSubjDir + glob('*_MD.nii.gz')[0]
 	mdExt = '*_md_' + stat + '_ts.csv'
 
 	if not os.path.exists(mdCSV):
@@ -246,7 +232,7 @@ def getMdMat(stat):
 				-tractstat ' + stat + ' \
 				-outputroot ' + subjectID + '_md_' + stat + '_')
 
-			shutil.copyfile(tempSubjDir + glob.glob(mdExt)[0], conmatPipeDir + subjectID + '_bedpostX_det_md_' + stat + '.csv')
+			shutil.copyfile(tempSubjDir + glob(mdExt)[0], conmatPipeDir + subjectID + '_bedpostX_det_md_' + stat + '.csv')
 		except:
 			register()
 			os.system('md -inputfile wdt.nii.gz -outputfile md.nii.gz')
@@ -258,7 +244,7 @@ def getMdMat(stat):
 				-scalarfile md.nii.gz \
 				-tractstat ' + stat + ' \
 				-outputroot ' + subjectID + '_md_' + stat + '_')
-			shutil.copyfile(tempSubjDir + glob.glob(mdExt)[0], conmatPipeDir + subjectID + '_bedpostX_det_md_' + stat + '.csv')
+			shutil.copyfile(tempSubjDir + glob(mdExt)[0], conmatPipeDir + subjectID + '_bedpostX_det_md_' + stat + '.csv')
 
 def removeTempFiles():
 	shutil.rmtree(tempSubjDir)
@@ -267,4 +253,20 @@ def removeTempFiles():
 #--------------------------------------------------------------------------------
 
 if __name__ == '__main__':
+
+    projectName = sys.argv[1]
+    subjectID = sys.argv[2]
+
+    # input directories
+    dtiPipeDir = '/archive/data-2.0/' + projectName + '/pipelines/dtifit/' + subjectID + '/'
+    hcpPipeDir = '/archive/data-2.0/' + projectName + '/pipelines/hcp/' + subjectID + '/T1w/'
+    mniAtlasDir = '/projects/lliu/ImportantFiles/'
+    eyeFile = tempSubjName + '.bedpostX/xfms/eye.mat'
+
+    # output directories
+    bedpostXPipeDir = '/scratch/lliu/' + projectName + '/pipelines/bedpostX/' + subjectID + '/'
+    conmatPipeDir = '/scratch/lliu/' + projectName + '/pipelines/conmat/' + subjectID + '/'
+    tempSubjDir = '/scratch/lliu/tmp/' + subjectID + '/'
+    tempSubjName = '/scratch/lliu/tmp/' + subjectID
+
 	main()
