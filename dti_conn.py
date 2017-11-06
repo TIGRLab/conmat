@@ -235,6 +235,20 @@ def main():
 
 if __name__ == '__main__':
 
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('t1', help='T1 weighted image (deskulled)')
+    argparser.add_argument('t1_wm', help='White matter mask in register wiht T1 (voxel dimensions must match)')
+    argparser.add_argument('atlas' help='atlas file with integer ROIs')
+    argparser.add_argument('atlas_anat' help='T1 weighted image associated with atlas')
+
+
+
+    argparser.add_argument('bval', help='bval file from spherical phantom')
+    argparser.add_argument('output_prefix', help='full path to output prefix')
+    argparser.add_argument('-a', '--accel', help='y/n, y=nyquist accelerated data [default=n]')
+    argparser.add_argument('-v', '--verbose', action="count", help='turns on debug messages')
+    args = argparser.parse_args()
+
     projectName = sys.argv[1]
     subjectID = sys.argv[2]
 
