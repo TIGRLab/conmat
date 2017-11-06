@@ -26,7 +26,7 @@ atlas=shen_2mm_268_parcellation.nii.gz
 
 ## preprocessing so all analysis can be done in single subject space
 # make scheme file
-fsl2scheme -bvecfile ${bvecFile} -bvalfile ${bvalFile} > "${subject}_${tag}_bvec.scheme"
+fsl2scheme -bvecfile ${bvecfile} -bvalfile ${bvalfile} > "${subject}_${tag}_bvec.scheme"
 
 # register b0 to T1 and vice-versa
 flirt -in ${b0} -ref ${t1} -searchrx -180 180 -searchry -180 180 -searchrz -180 180 -cost mutualinfo -omat reg_b0_to_t1.mat -o reg_b0_to_t1.nii.gz
@@ -44,58 +44,54 @@ convert_xfm -omat reg_mni_to_b0.mat -concat reg_t1_to_b0.mat reg_mni_to_t1.mat
 flirt -in ${atlas} -ref ${b0} -interp nearestneighbour -applyxfm -init reg_mni_to_b0.mat -o reg_atlas_to_b0.nii.gz
 
 
+#################################################################
 ## deterministic tractographt camino
 # fitting tensors
-wdtfit ${multiVol} bVectorScheme.scheme -brainmask ${b0Mask} -outputfile wdt.nii.gz
+wdtfit ${dwifile} "${subject}_${tag}_bvec.scheme" -bgmask ${mask} -outputfile ${subject}_${tag}_wdfit_determinisitc.nii.gz
+
 # calculate streamlines
-track -inputfile wdt.nii.gz -inputmodel dt -seedfile wmparc_invert_bin.nii.gz \
-    -curvethresh 90 -curveinterval 2.5 -anisthresh 0.2 -tracker rk4
-    -interpolator linear -stepsize 0.5 -iterations 100 -brainmask ${b0Mask} | procstreamlines \
-    -endpointfile atlas.nii.gz -outputfile camDetTracts.Bfloat
+track -inputfile ${subject}_${tag}_wdfit_determinisitc.nii.gz -inputmodel dt -seedfile reg_wm_to_b0.nii.gz -curvethresh 90 -curveinterval 2.5 -anisthresh 0.2 -tracker rk4 -interpolator linear -stepsize 0.5 -iterations 100 -brainmask ${mask} | procstreamlines -endpointfile reg_atlas_to_b0.nii.gz -outputfile ${subject}_${tag}_wdfit_determinisitc_tracts.Bfloat
 
 # voxel-wise fa and md
-md -inputfile wdt.nii.gz -outputfile md.nii.gz
-fa -inputfile wdt.nii.gz -outputfile fa.nii.gz
+md -inputfile ${subject}_${tag}_wdfit_determinisitc.nii.gz -outputfile ${subject}_${tag}_wdfit_determinisitc_md.nii.gz
+fa -inputfile ${subject}_${tag}_wdfit_determinisitc.nii.gz -outputfile ${subject}_${tag}_wdfit_determinisitc_fa.nii.gz
 
 # calculate connectivity matrix
-conmat -inputfile camDetTracts.Bfloat -targetfile atlas.nii.gz -tractstat length -outputroot conmat_det_
+conmat -inputfile ${subject}_${tag}_wdfit_determinisitc_tracts.Bfloat -targetfile reg_atlas_to_b0.nii.gz -tractstat length -outputroot ${subject}_${tag}_wdfit_determinisitc_conn_
 
 
+#####################################
 ## probabilistic tractography camino
 # convert DWI to camino format
-image2voxel -4dimage ${multiVol} -outputfile dwi.Bfloat
+image2voxel -4dimage ${dwifile} -outputfile "${subject}_${tag}_dwi.Bfloat"
 
 # fit tensors
-modelfit -inputfile dwi.Bfloat -schemefile bVectorScheme.scheme -model ldt -brainmask ${b0Mask} -outputfile dt.Bdouble
+modelfit -inputfile "${subject}_${tag}_dwi.Bfloat" -schemefile "${subject}_${tag}_bvec.scheme" -model ldt -brainmask ${mask} -outputfile ${subject}_${tag}_modelfit_probabilistic.Bdouble
 
-for metric in fa md; do
-    cat dt.Bdouble | ${metric} | voxel2image -outputroot ${PROG} -header ${multiVol}
-done
-
-cat dt.Bdouble | dteig > dteig.Bdouble
-
-# calculate snr
-signalNoiseRatio=$(estimatesnr -inputfile dwi.Bfloat -schemefile bVectorScheme.scheme -bgmask ${b0Mask} | grep "SNR mult" | tr "\t" " " | tr -s " " | cut -d " " -f3)
-echo "snr=${signalNoiseRatio}"
-
-# generate look up table (lut)
-dtlutgen -schemefile bVectorScheme.scheme -snr ${signalNoiseRatio} > picoTable.dat
+cat ${subject}_${tag}_modelfit_probabilistic.Bdouble | dteig > ${subject}_${tag}_modelfit_probabilistic_dteig.Bdouble
 
 # generate Probability Density Functions (PDFs) in each voxel
-picopdfs -inputmodel dt -luts picoTable.dat < dt.Bdouble > pdfs.Bdouble
+snr=$(estimatesnr -inputfile "${subject}_${tag}_dwi.Bfloat" -schemefile "${subject}_${tag}_bvec.scheme" -bgmask ${mask} | grep "SNR mult" | tr "\t" " " | tr -s " " | cut -d " " -f3)
+dtlutgen -schemefile "${subject}_${tag}_bvec.scheme" -snr ${snr} > ${subject}_${tag}_dtlut.dat
+picopdfs -inputmodel dt -luts ${subject}_${tag}_dtlut.dat < ${subject}_${tag}_modelfit_probabilistic.Bdouble > ${subject}_${tag}_modelfit_probabilistic_pdfs.Bdouble
 
-# generate streamlines
-track -inputmodel pico -seedfile wmparc_invert_bin.nii.gz -iterations 100 < pdfs.Bdouble > picoTracts.Bfloat
-
-# voxel-wise fa + md
-md -inputfile wdt.nii.gz -outputfile md.nii.gz
-fa -inputfile wdt.nii.gz -outputfile fa.nii.gz
-
-# calculating connectivity matrix
+# generate streamlines and connectivity matrix
+track -inputmodel pico -seedfile reg_wm_to_b0.nii.gz -iterations 1000 < ${subject}_${tag}_modelfit_probabilistic_pdfs.Bdouble > ${subject}_${tag}_modelfit_probabilistic_tracts.Bfloat
 conmat -inputfile picoTracts.Bfloat -targetfile atlas.nii.gz -tractstat length -outputroot conmat_prob_
 
+# voxel-wise fa + md
+for metric in fa md; do
+    cat ${subject}_${tag}_modelfit_probabilistic.Bdouble | ${metric} | voxel2image -outputroot ${subject}_${tag}_modelfit_probabilistic_${metric} -header ${dwifile}
+done
 
-
+# run FSL's bedpostx thing
+mkdir bedpostx
+cp ${dwifile} bedpostx/data.nii.gz
+cp ${mask} bedpostx/nodif_brain_mask.nii.gz
+cp ${bvecfile} bedpostx/bvecs
+cp ${bvalfile} bedpostx/bvals
+cd bedpostx
+bedpostx ./
 
 ## BedpostX probabilistic
 track -bedpostxdir ../${subject}.bedpostX/ -inputmodel bedpostx -seedfile wmparc_invert_bin.nii.gz \
