@@ -25,9 +25,6 @@ atlas=shen_2mm_268_parcellation.nii.gz
 ## NB: runs after DTIFIT, requires some of the outputs
 
 ## preprocessing so all analysis can be done in single subject space
-# make scheme file
-fsl2scheme -bvecfile ${bvecfile} -bvalfile ${bvalfile} > "${subject}_${tag}_bvec.scheme"
-
 # register b0 to T1 and vice-versa
 flirt -in ${b0} -ref ${t1} -searchrx -180 180 -searchry -180 180 -searchrz -180 180 -cost mutualinfo -omat reg_b0_to_t1.mat -o reg_b0_to_t1.nii.gz
 convert_xfm -omat reg_t1_to_b0.mat -inverse reg_b0_to_t1.mat
@@ -46,6 +43,9 @@ flirt -in ${atlas} -ref ${b0} -interp nearestneighbour -applyxfm -init reg_mni_t
 
 #################################################################
 ## deterministic tractographt camino
+# make scheme file
+fsl2scheme -bvecfile ${bvecfile} -bvalfile ${bvalfile} > "${subject}_${tag}_bvec.scheme"
+
 # fitting tensors
 wdtfit ${dwifile} "${subject}_${tag}_bvec.scheme" -bgmask ${mask} -outputfile ${subject}_${tag}_wdfit_determinisitc.nii.gz
 
@@ -71,8 +71,7 @@ modelfit -inputfile "${subject}_${tag}_dwi.Bfloat" -schemefile "${subject}_${tag
 cat ${subject}_${tag}_modelfit_probabilistic.Bdouble | dteig > ${subject}_${tag}_modelfit_probabilistic_dteig.Bdouble
 
 # generate Probability Density Functions (PDFs) in each voxel
-snr=$(estimatesnr -inputfile "${subject}_${tag}_dwi.Bfloat" -schemefile "${subject}_${tag}_bvec.scheme" -bgmask ${mask} | grep "SNR mult" | tr "\t" " " | tr -s " " | cut -d " " -f3)
-dtlutgen -schemefile "${subject}_${tag}_bvec.scheme" -snr ${snr} > ${subject}_${tag}_dtlut.dat
+dtlutgen -schemefile "${subject}_${tag}_bvec.scheme" -snr $(estimatesnr -inputfile "${subject}_${tag}_dwi.Bfloat" -schemefile "${subject}_${tag}_bvec.scheme" -bgmask ${mask} | grep "SNR mult" | tr "\t" " " | tr -s " " | cut -d " " -f3) > ${subject}_${tag}_dtlut.dat
 picopdfs -inputmodel dt -luts ${subject}_${tag}_dtlut.dat < ${subject}_${tag}_modelfit_probabilistic.Bdouble > ${subject}_${tag}_modelfit_probabilistic_pdfs.Bdouble
 
 # generate streamlines and connectivity matrix
