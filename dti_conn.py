@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 calculates structural connectivity between ROIs in the input atlas using
 multiple diffusion weighted imaging (DTI) methods implemented in CAMINO, both
